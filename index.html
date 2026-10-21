@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>拾沙物语 Sand Story</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        macaron: {
+                            bg: '#FAF7F2',
+                            card: '#FFFDF9',
+                            mint: '#A8E6CF',
+                            peach: '#FF8B94',
+                            lavender: '#D8B4F8',
+                            yellow: '#FFEAA7',
+                            blue: '#A0C4FF',
+                            text: '#5A5353',
+                            subtext: '#8C827A',
+                            border: '#EFE7DC'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Nunito', 'PingFang SC', 'Microsoft YaHei', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #FAF7F2;
+            color: #5A5353;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+
+        /* 柔和阴影与过渡 */
+        .macaron-shadow {
+            box-shadow: 0 10px 25px -5px rgba(210, 195, 180, 0.3), 0 8px 10px -6px rgba(210, 195, 180, 0.2);
+        }
+        
+        .macaron-btn {
+            transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .macaron-btn:active {
+            transform: scale(0.92);
+        }
+
+        /* 桶抖动特效 */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-4px); }
+            40%, 80% { transform: translateX(4px); }
+        }
+        .animate-shake {
+            animation: shake 0.4s ease-in-out;
+        }
+
+        /* 桶发光高亮（提示） */
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(216, 180, 248, 0.7); }
+            50% { box-shadow: 0 0 0 12px rgba(216, 180, 248, 0); }
+        }
+        .hint-pulse {
+            animation: pulse-glow 1.5s infinite;
+        }
+
+        /* 隐藏 Scrollbar */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col justify-between overflow-hidden font-sans">
+
+    <!-- 顶部 Header -->
+    <header class="w-full max-w-2xl mx-auto px-4 pt-3 flex flex-col gap-2 z-10">
+        <div class="flex justify-between items-center">
+            <div>
+                <h1 class="text-xl md:text-2xl font-bold tracking-wide text-macaron-text flex items-center gap-2">
+                    <i class="fa-solid font-sharp fa-hourglass-half text-macaron-peach"></i> 拾沙物语
+                    <span class="text-xs text-macaron-subtext font-normal hidden sm:inline">Sand Story</span>
+                </h1>
+            </div>
+            
+            <!-- 控制按钮 -->
+            <div class="flex items-center gap-2">
+                <button id="btn-audio" onclick="toggleAudio()" class="macaron-btn w-9 h-9 rounded-full bg-macaron-card border border-macaron-border flex items-center justify-center text-macaron-text macaron-shadow hover:bg-white">
+                    <i id="audio-icon" class="fa-solid fa-volume-high"></i>
+                </button>
+                <button id="btn-undo" onclick="undoMove()" class="macaron-btn w-9 h-9 rounded-full bg-macaron-card border border-macaron-border flex items-center justify-center text-macaron-text macaron-shadow hover:bg-white disabled:opacity-40">
+                    <i class="fa-solid fa-rotate-left"></i>
+                </button>
+                <button id="btn-hint" onclick="showHint()" class="macaron-btn w-9 h-9 rounded-full bg-macaron-card border border-macaron-border flex items-center justify-center text-macaron-text macaron-shadow hover:bg-white">
+                    <i class="fa-regular fa-lightbulb text-amber-400"></i>
+                </button>
+                <button id="btn-reset" onclick="resetLevel()" class="macaron-btn w-9 h-9 rounded-full bg-macaron-card border border-macaron-border flex items-center justify-center text-macaron-text macaron-shadow hover:bg-white">
+                    <i class="fa-solid fa-arrow-rotate-right"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- 关卡与进度 bar -->
+        <div class="flex items-center justify-between gap-4 bg-macaron-card/80 backdrop-blur border border-macaron-border px-4 py-2 rounded-2xl macaron-shadow">
+            <div class="flex items-center gap-2">
+                <button onclick="openLevelSelect()" class="macaron-btn px-3 py-1 bg-macaron-bg rounded-xl font-bold text-sm border border-macaron-border flex items-center gap-1 hover:bg-white">
+                    <span id="level-title">第 1 关</span>
+                    <i class="fa-solid fa-chevron-down text-xs text-macaron-subtext"></i>
+                </button>
+            </div>
+            
+            <div class="flex-1 max-w-xs flex flex-col gap-1">
+                <div class="flex justify-between text-xs text-macaron-subtext font-medium">
+                    <span>揭开进度</span>
+                    <span id="progress-text">0%</span>
+                </div>
+                <div class="w-full bg-macaron-bg h-2.5 rounded-full overflow-hidden p-0.5 border border-macaron-border/50">
+                    <div id="progress-bar" class="bg-gradient-to-r from-macaron-mint via-macaron-peach to-macaron-lavender h-full rounded-full transition-all duration-300 w-0"></div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 中间：沙画主画布容器 -->
+    <main class="flex-1 w-full max-w-2xl mx-auto p-4 flex flex-col justify-center items-center relative min-h-0">
+        <div id="game-container" class="relative w-full max-w-[380px] aspect-square bg-macaron-card rounded-3xl border-4 border-white macaron-shadow p-3 flex justify-center items-center overflow-hidden">
+            <!-- Canvas 层: 底图 + 沙粒层 + 粒子 -->
+            <canvas id="sandCanvas" class="w-full h-full rounded-2xl cursor-pointer touch-none"></canvas>
+            
+            <!-- 浮动提示遮罩/引导 -->
+            <div id="guide-overlay" class="absolute inset-0 bg-black/10 pointer-events-none rounded-2xl flex items-center justify-center opacity-0 transition-opacity duration-300">
+                <div class="bg-white/90 backdrop-blur-md px-4 py-2 rounded-full text-xs font-bold text-macaron-text shadow-lg animate-bounce">
+                    点击下方匹配颜色的水彩桶！
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 底部：颜色收集桶 -->
+    <footer class="w-full max-w-2xl mx-auto px-4 pb-6 z-10">
+        <div class="bg-macaron-card/90 backdrop-blur border border-macaron-border rounded-3xl p-3 macaron-shadow">
+            <div class="text-xs text-center text-macaron-subtext mb-2 font-medium flex justify-center items-center gap-1">
+                <span>收集桶目标</span>
+                <i class="fa-solid fa-circle-info text-[10px]" title="点击对应颜色的桶来收集表层沙粒"></i>
+            </div>
+            
+            <!-- 桶列表 -->
+            <div id="bucket-container" class="flex justify-center items-center gap-3 sm:gap-4 no-scrollbar overflow-x-auto py-1">
+                <!-- 由 JavaScript 动态渲染桶 -->
+            </div>
+        </div>
+    </footer>
+
+    <!-- 弹窗：关卡选择 modal -->
+    <div id="modal-levels" class="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="bg-macaron-card border border-macaron-border w-11/12 max-w-md rounded-3xl p-6 macaron-shadow transform scale-95 transition-transform duration-300 flex flex-col gap-4 max-h-[80vh]">
+            <div class="flex justify-between items-center">
+                <h3 class="text-lg font-bold text-macaron-text flex items-center gap-2">
+                    <i class="fa-solid fa-map"></i> 选择关卡
+                </h3>
+                <button onclick="closeLevelSelect()" class="text-macaron-subtext hover:text-macaron-text w-8 h-8 rounded-full flex items-center justify-center">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <div id="level-grid" class="grid grid-cols-3 gap-3 overflow-y-auto pr-1 py-2">
+                <!-- 关卡卡片 dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 弹窗：胜利结算 Modal -->
+    <div id="modal-win" class="fixed inset-0 bg-black/40 backdrop-blur-md z-50 flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="bg-macaron-card border-2 border-white w-11/12 max-w-sm rounded-3xl p-6 macaron-shadow transform scale-95 transition-transform duration-300 text-center flex flex-col items-center gap-4">
+            <div class="w-16 h-16 rounded-full bg-macaron-mint/30 flex items-center justify-center text-macaron-mint text-3xl animate-bounce mt-2">
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+            </div>
+            
+            <div>
+                <h2 class="text-2xl font-bold text-macaron-text">画作重现！</h2>
+                <p class="text-xs text-macaron-subtext mt-1">完美剥离沙层，恢复了隐藏的绚丽图案。</p>
+            </div>
+
+            <!-- 星级结算 -->
+            <div id="star-rating" class="flex gap-2 text-2xl text-amber-300 my-1">
+                <i class="fa-solid fa-star"></i>
+                <i class="fa-solid fa-star"></i>
+                <i class="fa-solid fa-star"></i>
+            </div>
+
+            <!-- 完工画作预览框 -->
+            <div class="w-48 h-48 rounded-2xl border-4 border-white shadow-inner bg-macaron-bg overflow-hidden relative">
+                <canvas id="winArtworkCanvas" class="w-full h-full"></canvas>
+            </div>
+
+            <div class="flex gap-3 w-full mt-2">
+                <button onclick="resetLevel(); closeWinModal();" class="macaron-btn flex-1 py-3 bg-macaron-bg border border-macaron-border rounded-2xl font-bold text-sm text-macaron-text hover:bg-white">
+                    重玩本关
+                </button>
+                <button onclick="nextLevel()" class="macaron-btn flex-1 py-3 bg-macaron-mint text-white rounded-2xl font-bold text-sm shadow-md hover:brightness-105">
+                    下一关
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 弹窗：卡死/无可用解 Modal -->
+    <div id="modal-stuck" class="fixed inset-0 bg-black/40 backdrop-blur-md z-50 flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="bg-macaron-card border-2 border-white w-11/12 max-w-sm rounded-3xl p-6 macaron-shadow transform scale-95 transition-transform duration-300 text-center flex flex-col items-center gap-4">
+            <div class="w-16 h-16 rounded-full bg-macaron-peach/30 flex items-center justify-center text-macaron-peach text-3xl mt-2">
+                <i class="fa-solid fa-hourglass-end"></i>
+            </div>
+            
+            <div>
+                <h2 class="text-xl font-bold text-macaron-text">收集受阻</h2>
+                <p class="text-xs text-macaron-subtext mt-1">没有桶可以接收当前露出的表层沙粒了。</p>
+            </div>
+
+            <div class="flex gap-3 w-full mt-2">
+                <button onclick="undoMove(); closeStuckModal();" class="macaron-btn flex-1 py-3 bg-macaron-bg border border-macaron-border rounded-2xl font-bold text-sm text-macaron-text hover:bg-white">
+                    <i class="fa-solid fa-rotate-left mr-1"></i> 撤回一步
+                </button>
+                <button onclick="resetLevel(); closeStuckModal();" class="macaron-btn flex-1 py-3 bg-macaron-peach text-white rounded-2xl font-bold text-sm shadow-md hover:brightness-105">
+                    <i class="fa-solid fa-arrow-rotate-right mr-1"></i> 重新开始
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 游戏脚本 -->
+    <script>
+        /* ----------------------------------------------------
+         * 1. 常量与调色板定义 (Macaron Palette)
+         * ---------------------------------------------------- */
+        const COLOR_PALETTE = {
+            'MINT': { hex: '#A8E6CF', name: '薄荷绿', dark: '#82C9B1' },
+            'PEACH': { hex: '#FF8B94', name: '蜜桃粉', dark: '#E06D76' },
+            'LAVENDER': { hex: '#D8B4F8', name: '薰衣草紫', dark: '#B58FE0' },
+            'YELLOW': { hex: '#FFEAA7', name: '鹅黄', dark: '#E0C97F' },
+            'BLUE': { hex: '#A0C4FF', name: '天空蓝', dark: '#7BA3E0' }
+        };
+
+        /* ----------------------------------------------------
+         * 2. 关卡配置 (内置 5 个精心设计的解谜关卡)
+         * ---------------------------------------------------- */
+        const LEVELS = [
+            {
+                id: 1,
+                name: "初见流沙",
+                colors: ['MINT', 'PEACH'],
+                bucketCapacity: 12,
+                artType: 'HEART', // 画作遮罩形状
+                // 区域布局 (Regions) 与沙层堆叠 (底到顶)
+                regions: [
+                    { id: 0, pathType: 'LEFT', layers: ['PEACH', 'MINT'] },
+                    { id: 1, pathType: 'RIGHT', layers: ['MINT', 'PEACH'] }
+                ]
+            },
+            {
+                id: 2,
+                name: "三色交响",
+                colors: ['MINT', 'PEACH', 'YELLOW'],
+                bucketCapacity: 10,
+                artType: 'STAR',
+                regions: [
+                    { id: 0, pathType: 'TOP', layers: ['PEACH', 'YELLOW', 'MINT'] },
+                    { id: 1, pathType: 'BOTTOM_LEFT', layers: ['MINT', 'PEACH', 'YELLOW'] },
+                    { id: 2, pathType: 'BOTTOM_RIGHT', layers: ['YELLOW', 'MINT', 'PEACH'] }
+                ]
+            },
+            {
+                id: 3,
+                name: "薰衣草梦境",
+                colors: ['LAVENDER', 'PEACH', 'BLUE'],
+                bucketCapacity: 12,
+                artType: 'CAT',
+                regions: [
+                    { id: 0, pathType: 'QUAD_1', layers: ['BLUE', 'PEACH', 'LAVENDER'] },
+                    { id: 1, pathType: 'QUAD_2', layers: ['PEACH', 'LAVENDER', 'BLUE'] },
+                    { id: 2, pathType: 'QUAD_3', layers: ['LAVENDER', 'BLUE', 'PEACH'] },
+                    { id: 3, pathType: 'QUAD_4', layers: ['BLUE', 'LAVENDER', 'PEACH'] }
+                ]
+            },
+            {
+                id: 4,
+                name: "彩虹阶梯",
+                colors: ['MINT', 'PEACH', 'LAVENDER', 'YELLOW'],
+                bucketCapacity: 12,
+                artType: 'FLOWER',
+                regions: [
+                    { id: 0, pathType: 'RING_OUTER', layers: ['YELLOW', 'LAVENDER', 'PEACH', 'MINT'] },
+                    { id: 1, pathType: 'RING_MID', layers: ['MINT', 'YELLOW', 'LAVENDER', 'PEACH'] },
+                    { id: 2, pathType: 'RING_INNER', layers: ['PEACH', 'MINT', 'YELLOW', 'LAVENDER'] }
+                ]
+            },
+            {
+                id: 5,
+                name: "物语交错",
+                colors: ['MINT', 'PEACH', 'LAVENDER', 'YELLOW', 'BLUE'],
+                bucketCapacity: 12,
+                artType: 'CASTLE',
+                regions: [
+                    { id: 0, pathType: 'GRID_1', layers: ['BLUE', 'YELLOW', 'LAVENDER', 'MINT'] },
+                    { id: 1, pathType: 'GRID_2', layers: ['MINT', 'PEACH', 'BLUE', 'YELLOW'] },
+                    { id: 2, pathType: 'GRID_3', layers: ['YELLOW', 'LAVENDER', 'PEACH', 'BLUE'] },
+                    { id: 3, pathType: 'GRID_4', layers: ['PEACH', 'MINT', 'YELLOW', 'LAVENDER'] },
+                    { id: 4, pathType: 'GRID_5', layers: ['LAVENDER', 'BLUE', 'MINT', 'PEACH'] }
+                ]
+            }
+        ];
+
+        /* ----------------------------------------------------
+         * 3. 游戏全局状态 (State)
+         * ---------------------------------------------------- */
+        let currentLevelIndex = 0;
+        let gameState = {
+            regions: [],      // 每一个区域当前剩余的沙层 [ {id, pathType, layers: [...] } ]
+            buckets: {},      // 各个颜色桶的当前状态 { 'MINT': { count: 0, capacity: 12 } }
+            totalSandInitial: 0,
+            totalSandRemaining: 0,
+            history: [],      // 撤销历史队列
+            isAnimating: false,
+            audioEnabled: true
+        };
+
+        // Canvas 相关
+        let mainCanvas, mainCtx;
+        let particles = [];   // 正在飞往桶粒子的动画对象
+
+        /* ----------------------------------------------------
+         * 4. Web Audio API 音效合成器 (零外部音频文件)
+         * ---------------------------------------------------- */
+        class SoundSynth {
+            constructor() {
+                this.ctx = null;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    if (AudioContext) {
+                        this.ctx = new AudioContext();
+                    }
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            // 轻柔沙粒流动音
+            playSandCollect() {
+                if (!gameState.audioEnabled) return;
+                this.init();
+                if (!this.ctx) return;
+
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'sine';
+                // 向上滑音，模拟沙粒聚集
+                const now = this.ctx.currentTime;
+                osc.frequency.setValueAtTime(300 + Math.random() * 100, now);
+                osc.frequency.exponentialRampToValueAtTime(600 + Math.random() * 150, now + 0.15);
+
+                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.15);
+            }
+
+            // 桶装满或成功反馈音
+            playBucketFull() {
+                if (!gameState.audioEnabled) return;
+                this.init();
+                if (!this.ctx) return;
+
+                const notes = [523.25, 659.25, 783.99]; // C5, E5, G5 和弦
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    const now = this.ctx.currentTime + idx * 0.05;
+
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, now);
+
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.3);
+                });
+            }
+
+            // 错误/卡死提示音
+            playError() {
+                if (!gameState.audioEnabled) return;
+                this.init();
+                if (!this.ctx) return;
+
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                const now = this.ctx.currentTime;
+
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(180, now);
+                osc.frequency.linearRampToValueAtTime(110, now + 0.2);
+
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.2);
+            }
+
+            // 通关欢呼和弦
+            playWinSound() {
+                if (!gameState.audioEnabled) return;
+                this.init();
+                if (!this.ctx) return;
+
+                const chord = [523.25, 659.25, 783.99, 1046.50]; // C Major
+                chord.forEach((freq, i) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    const now = this.ctx.currentTime + i * 0.08;
+
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, now);
+
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.6);
+                });
+            }
+        }
+
+        const sound = new SoundSynth();
+
+        /* ----------------------------------------------------
+         * 5. 初始化与生命周期
+         * ---------------------------------------------------- */
+        window.addEventListener('DOMContentLoaded', () => {
+            mainCanvas = document.getElementById('sandCanvas');
+            mainCtx = mainCanvas.getContext('2d');
+
+            // 监听 Canvas 点击事件 (直接点击画布中的沙区也可触发)
+            mainCanvas.addEventListener('pointerdown', handleCanvasClick);
+
+            // 窗口调整大小时自动适配 Canvas
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+
+            // 读取本地进度
+            loadProgress();
+
+            // 初始化第一关
+            loadLevel(currentLevelIndex);
+
+            // 启动渲染循环
+            requestAnimationFrame(gameLoop);
+        });
+
+        function resizeCanvas() {
+            const container = mainCanvas.parentElement;
+            const rect = container.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            
+            mainCanvas.width = rect.width * dpr;
+            mainCanvas.height = rect.height * dpr;
+            
+            mainCtx.scale(dpr, dpr);
+            renderCanvas();
+        }
+
+        /* ----------------------------------------------------
+         * 6. 关卡加载与状态管理
+         * ---------------------------------------------------- */
+        function loadLevel(index) {
+            currentLevelIndex = index;
+            const level = LEVELS[index];
+
+            // 拷贝区域数据 (Deep copy)
+            gameState.regions = level.regions.map(r => ({
+                id: r.id,
+                pathType: r.pathType,
+                layers: [...r.layers]
+            }));
+
+            // 准备桶数据
+            gameState.buckets = {};
+            level.colors.forEach(colorKey => {
+                gameState.buckets[colorKey] = {
+                    count: 0,
+                    capacity: level.bucketCapacity
+                };
+            });
+
+            // 计算总沙粒层数
+            gameState.totalSandInitial = gameState.regions.reduce((acc, r) => acc + r.layers.length, 0);
+            gameState.totalSandRemaining = gameState.totalSandInitial;
+
+            // 重置历史与动画
+            gameState.history = [];
+            gameState.isAnimating = false;
+
+            // UI 刷新
+            document.getElementById('level-title').innerText = `第 ${level.id} 关 · ${level.name}`;
+            updateProgressUI();
+            renderBuckets();
+            renderCanvas();
+            updateUndoButton();
+        }
+
+        function resetLevel() {
+            loadLevel(currentLevelIndex);
+        }
+
+        /* ----------------------------------------------------
+         * 7. 核心游戏规则与收集逻辑
+         * ---------------------------------------------------- */
+
+        // 查找所有暴露在最表层（layers 最上方）的沙粒
+        function getExposedSand() {
+            const exposed = {};
+            gameState.regions.forEach(r => {
+                if (r.layers.length > 0) {
+                    const topColor = r.layers[r.layers.length - 1]; // 栈顶为表层
+                    exposed[topColor] = (exposed[topColor] || 0) + 1;
+                }
+            });
+            return exposed; // 例如: { 'MINT': 2, 'PEACH': 1 }
+        }
+
+        // 玩家点击某个颜色桶或点击了画布上的某个颜色沙区
+        function collectColor(colorKey) {
+            if (gameState.isAnimating) return;
+
+            const bucket = gameState.buckets[colorKey];
+            if (!bucket) return; // 本关无此颜色桶
+
+            // 获取当前表层暴露的该颜色沙粒数量
+            const exposedMap = getExposedSand();
+            const countExposed = exposedMap[colorKey] || 0;
+
+            if (countExposed === 0) {
+                // 没有可收集的该颜色沙粒
+                shakeBucket(colorKey);
+                sound.playError();
+                return;
+            }
+
+            // 检查桶是否有空位
+            const spaceLeft = bucket.capacity - bucket.count;
+            if (spaceLeft <= 0) {
+                // 桶满提示
+                shakeBucket(colorKey);
+                sound.playError();
+                return;
+            }
+
+            // 保存历史以备撤销
+            saveHistorySnapshot();
+
+            // 决定能够收集的数量（受限于剩余空位）
+            const collectAmount = Math.min(countExposed, spaceLeft);
+
+            // 从表层移除沙粒并生成粒子
+            let collectedCount = 0;
+            const startPoints = [];
+
+            gameState.regions.forEach(r => {
+                if (collectedCount < collectAmount && r.layers.length > 0) {
+                    if (r.layers[r.layers.length - 1] === colorKey) {
+                        r.layers.pop(); // 移除表层
+                        collectedCount++;
+                        gameState.totalSandRemaining--;
+
+                        // 记录动画起点
+                        startPoints.push(getRegionCenter(r.pathType));
+                    }
+                }
+            });
+
+            // 更新桶中数量
+            bucket.count += collectedCount;
+
+            // 触发特效与音效
+            sound.playSandCollect();
+            if (bucket.count === bucket.capacity) {
+                setTimeout(() => sound.playBucketFull(), 150);
+            }
+
+            // 产生流向桶的粒子
+            spawnCollectParticles(colorKey, startPoints);
+
+            // 更新 UI 与检查胜负
+            renderBuckets();
+            updateProgressUI();
+            updateUndoButton();
+
+            // 检测是否胜利或卡死
+            checkGameStatus();
+        }
+
+        function saveHistorySnapshot() {
+            const snapshot = {
+                regions: gameState.regions.map(r => ({ id: r.id, pathType: r.pathType, layers: [...r.layers] })),
+                buckets: JSON.parse(JSON.stringify(gameState.buckets)),
+                totalSandRemaining: gameState.totalSandRemaining
+            };
+            gameState.history.push(snapshot);
+            if (gameState.history.length > 10) gameState.history.shift(); // 限制步数
+        }
+
+        function undoMove() {
+            if (gameState.history.length === 0 || gameState.isAnimating) return;
+
+            const lastState = gameState.history.pop();
+            gameState.regions = lastState.regions;
+            gameState.buckets = lastState.buckets;
+            gameState.totalSandRemaining = lastState.totalSandRemaining;
+
+            renderBuckets();
+            renderCanvas();
+            updateProgressUI();
+            updateUndoButton();
+            sound.playSandCollect();
+        }
+
+        function checkGameStatus() {
+            // 1. 检查是否全收完 (胜利)
+            if (gameState.totalSandRemaining === 0) {
+                setTimeout(() => {
+                    handleWin();
+                }, 400);
+                return;
+            }
+
+            // 2. 检查是否卡死 (Stuck)
+            // 当所有表层沙粒所对应的桶都已经满了，或者没有匹配的桶
+            const exposedMap = getExposedSand();
+            let canMove = false;
+
+            for (const colorKey in exposedMap) {
+                const bucket = gameState.buckets[colorKey];
+                if (bucket && bucket.count < bucket.capacity) {
+                    canMove = true;
+                    break;
+                }
+            }
+
+            if (!canMove && particles.length === 0) {
+                setTimeout(() => {
+                    openStuckModal();
+                }, 600);
+            }
+        }
+
+        /* ----------------------------------------------------
+         * 8. 路径与渲染逻辑 (Canvas 绘制沙层与底图)
+         * ---------------------------------------------------- */
+        function renderCanvas() {
+            if (!mainCtx) return;
+
+            const w = mainCanvas.width / (window.devicePixelRatio || 1);
+            const h = mainCanvas.height / (window.devicePixelRatio || 1);
+
+            mainCtx.clearRect(0, 0, w, h);
+
+            // 1. 绘制底层完整隐藏画作 (当沙层消失时逐步露出的背景)
+            drawArtwork(mainCtx, w, h, LEVELS[currentLevelIndex].artType);
+
+            // 2. 绘制各个区域的堆叠沙层
+            gameState.regions.forEach(region => {
+                const layerCount = region.layers.length;
+                if (layerCount === 0) return; // 已全部露底
+
+                mainCtx.save();
+                defineRegionPath(mainCtx, region.pathType, w, h);
+                mainCtx.clip(); // 限制只在该区域内部绘制
+
+                // 从底到顶绘制堆叠的沙层（用稍微错位的阴影增强层级感）
+                region.layers.forEach((colorKey, idx) => {
+                    const colorData = COLOR_PALETTE[colorKey];
+                    mainCtx.fillStyle = colorData.hex;
+                    mainCtx.fillRect(0, 0, w, h);
+
+                    // 绘制沙粒磨砂纹理 (颗粒感)
+                    drawSandTexture(mainCtx, w, h, colorData.dark, idx);
+
+                    // 边缘层级阴影（如果不是最顶层）
+                    if (idx < layerCount - 1) {
+                        mainCtx.fillStyle = 'rgba(0, 0, 0, 0.06)';
+                        mainCtx.fillRect(0, 0, w, h);
+                    }
+                });
+
+                // 绘制区域高光边框，强化分割线
+                mainCtx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+                mainCtx.lineWidth = 3;
+                mainCtx.stroke();
+
+                mainCtx.restore();
+            });
+
+            // 3. 绘制飞行的粒子
+            updateAndRenderParticles(mainCtx);
+        }
+
+        // 绘制磨砂颗粒感
+        function drawSandTexture(ctx, w, h, grainColor, seed) {
+            ctx.save();
+            ctx.fillStyle = grainColor;
+            ctx.globalAlpha = 0.15;
+            
+            // 简易伪随机点
+            const count = Math.floor((w * h) / 150);
+            for (let i = 0; i < count; i++) {
+                const x = Math.sin(i * 99 + seed) * 0.5 * w + w / 2;
+                const y = Math.cos(i * 33 + seed) * 0.5 * h + h / 2;
+                ctx.beginPath();
+                ctx.arc(x, y, 1.2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        // 绘制完整解谜底图画作 (隐藏图案)
+        function drawArtwork(ctx, w, h, artType) {
+            ctx.save();
+            // 底图背景 gradient
+            const grad = ctx.createLinearGradient(0, 0, w, h);
+            grad.addColorStop(0, '#FFF5EB');
+            grad.addColorStop(1, '#E8F5E9');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, w, h);
+
+            ctx.translate(w / 2, h / 2);
+
+            switch (artType) {
+                case 'HEART':
+                    ctx.fillStyle = COLOR_PALETTE['PEACH'].hex;
+                    ctx.beginPath();
+                    ctx.scale(1.2, 1.2);
+                    ctx.moveTo(0, 20);
+                    ctx.bezierCurveTo(-50, -30, -100, 30, 0, 90);
+                    ctx.bezierCurveTo(100, 30, 50, -30, 0, 20);
+                    ctx.fill();
+                    ctx.strokeStyle = '#FFFFFF';
+                    ctx.lineWidth = 6;
+                    ctx.stroke();
+                    break;
+
+                case 'STAR':
+                    ctx.fillStyle = COLOR_PALETTE['YELLOW'].hex;
+                    drawStarShape(ctx, 0, 0, 5, 80, 40);
+                    ctx.fill();
+                    ctx.strokeStyle = '#FFFFFF';
+                    ctx.lineWidth = 6;
+                    ctx.stroke();
+                    break;
+
+                case 'CAT':
+                    ctx.fillStyle = COLOR_PALETTE['LAVENDER'].hex;
+                    // 猫咪简笔画
+                    ctx.beginPath();
+                    ctx.arc(0, 10, 60, 0, Math.PI * 2); // 脸
+                    ctx.fill();
+                    // 耳朵
+                    ctx.beginPath();
+                    ctx.moveTo(-45, -30); ctx.lineTo(-65, -80); ctx.lineTo(-15, -55);
+                    ctx.moveTo(45, -30); ctx.lineTo(65, -80); ctx.lineTo(15, -55);
+                    ctx.fill();
+                    break;
+
+                case 'FLOWER':
+                    // 花朵
+                    for (let i = 0; i < 6; i++) {
+                        ctx.rotate((Math.PI * 2) / 6);
+                        ctx.fillStyle = i % 2 === 0 ? COLOR_PALETTE['MINT'].hex : COLOR_PALETTE['BLUE'].hex;
+                        ctx.beginPath();
+                        ctx.arc(0, 45, 35, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                    ctx.fillStyle = COLOR_PALETTE['YELLOW'].hex;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 35, 0, Math.PI * 2);
+                    ctx.fill();
+                    break;
+
+                case 'CASTLE':
+                default:
+                    // 梦幻城堡简影
+                    ctx.fillStyle = COLOR_PALETTE['BLUE'].hex;
+                    ctx.fillRect(-60, -20, 120, 100);
+                    ctx.fillStyle = COLOR_PALETTE['PEACH'].hex;
+                    // 尖顶
+                    ctx.beginPath();
+                    ctx.moveTo(-60, -20); ctx.lineTo(0, -90); ctx.lineTo(60, -20);
+                    ctx.fill();
+                    break;
+            }
+
+            ctx.restore();
+        }
+
+        function drawStarShape(ctx, cx, cy, spikes, outerRadius, innerRadius) {
+            let rot = (Math.PI / 2) * 3;
+            let x = cx;
+            let y = cy;
+            let step = Math.PI / spikes;
+
+            ctx.beginPath();
+            ctx.moveTo(cx, cy - outerRadius);
+            for (let i = 0; i < spikes; i++) {
+                x = cx + Math.cos(rot) * outerRadius;
+                y = cy + Math.sin(rot) * outerRadius;
+                ctx.lineTo(x, y);
+                rot += step;
+
+                x = cx + Math.cos(rot) * innerRadius;
+                y = cy + Math.sin(rot) * innerRadius;
+                ctx.lineTo(x, y);
+                rot += step;
+            }
+            ctx.lineTo(cx, cy - outerRadius);
+            ctx.closePath();
+        }
+
+        // 定义区域形状路径 (Regions Path)
+        function defineRegionPath(ctx, pathType, w, h) {
+            ctx.beginPath();
+            const cx = w / 2, cy = h / 2;
+
+            switch (pathType) {
+                case 'LEFT':
+                    ctx.rect(0, 0, w / 2, h);
+                    break;
+                case 'RIGHT':
+                    ctx.rect(w / 2, 0, w / 2, h);
+                    break;
+                case 'TOP':
+                    ctx.rect(0, 0, w, h / 2);
+                    break;
+                case 'BOTTOM_LEFT':
+                    ctx.rect(0, h / 2, w / 2, h / 2);
+                    break;
+                case 'BOTTOM_RIGHT':
+                    ctx.rect(w / 2, h / 2, w / 2, h / 2);
+                    break;
+
+                // 四象限
+                case 'QUAD_1': ctx.rect(0, 0, w / 2, h / 2); break;
+                case 'QUAD_2': ctx.rect(w / 2, 0, w / 2, h / 2); break;
+                case 'QUAD_3': ctx.rect(0, h / 2, w / 2, h / 2); break;
+                case 'QUAD_4': ctx.rect(w / 2, h / 2, w / 2, h / 2); break;
+
+                // 环形切分
+                case 'RING_OUTER':
+                    ctx.arc(cx, cy, w * 0.45, 0, Math.PI * 2);
+                    break;
+                case 'RING_MID':
+                    ctx.arc(cx, cy, w * 0.3, 0, Math.PI * 2);
+                    break;
+                case 'RING_INNER':
+                    ctx.arc(cx, cy, w * 0.15, 0, Math.PI * 2);
+                    break;
+
+                // 五网格分割
+                case 'GRID_1': ctx.rect(0, 0, w * 0.4, h * 0.5); break;
+                case 'GRID_2': ctx.rect(w * 0.4, 0, w * 0.6, h * 0.4); break;
+                case 'GRID_3': ctx.rect(0, h * 0.5, w * 0.5, h * 0.5); break;
+                case 'GRID_4': ctx.rect(w * 0.5, h * 0.4, w * 0.5, h * 0.6); break;
+                case 'GRID_5': ctx.arc(cx, cy, w * 0.22, 0, Math.PI * 2); break;
+
+                default:
+                    ctx.rect(0, 0, w, h);
+            }
+        }
+
+        function getRegionCenter(pathType) {
+            const w = mainCanvas.width / (window.devicePixelRatio || 1);
+            const h = mainCanvas.height / (window.devicePixelRatio || 1);
+
+            switch (pathType) {
+                case 'LEFT': return { x: w * 0.25, y: h * 0.5 };
+                case 'RIGHT': return { x: w * 0.75, y: h * 0.5 };
+                case 'TOP': return { x: w * 0.5, y: h * 0.25 };
+                case 'BOTTOM_LEFT': return { x: w * 0.25, y: h * 0.75 };
+                case 'BOTTOM_RIGHT': return { x: w * 0.75, y: h * 0.75 };
+                case 'QUAD_1': return { x: w * 0.25, y: h * 0.25 };
+                case 'QUAD_2': return { x: w * 0.75, y: h * 0.25 };
+                case 'QUAD_3': return { x: w * 0.25, y: h * 0.75 };
+                case 'QUAD_4': return { x: w * 0.75, y: h * 0.75 };
+                default: return { x: w * 0.5, y: h * 0.5 };
+            }
+        }
+
+        // 处理画布点击：检测点击了哪个区域，并触发收集其表层颜色
+        function handleCanvasClick(e) {
+            if (gameState.isAnimating) return;
+
+            const rect = mainCanvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            const w = rect.width;
+            const h = rect.height;
+
+            // 创建离屏 context 判断点在哪个 path 内
+            const tempCtx = mainCanvas.getContext('2d');
+
+            for (let i = gameState.regions.length - 1; i >= 0; i--) {
+                const r = gameState.regions[i];
+                if (r.layers.length === 0) continue;
+
+                tempCtx.beginPath();
+                defineRegionPath(tempCtx, r.pathType, w, h);
+
+                if (tempCtx.isPointInPath(x, y)) {
+                    const topColor = r.layers[r.layers.length - 1];
+                    collectColor(topColor);
+                    break;
+                }
+            }
+        }
+
+        /* ----------------------------------------------------
+         * 9. 粒子动画 (沙粒飞入桶)
+         * ---------------------------------------------------- */
+        function spawnCollectParticles(colorKey, startPoints) {
+            const bucketElem = document.getElementById(`bucket-${colorKey}`);
+            if (!bucketElem) return;
+
+            const bucketRect = bucketElem.getBoundingClientRect();
+            const canvasRect = mainCanvas.getBoundingClientRect();
+
+            // 计算相对 Canvas 的目标位置 (桶中心)
+            const targetX = bucketRect.left + bucketRect.width / 2 - canvasRect.left;
+            const targetY = bucketRect.top + bucketRect.height / 2 - canvasRect.top;
+
+            startPoints.forEach(pt => {
+                // 为每个被收集的区域生成 6~8 颗飞翔的小沙粒粒子
+                for (let i = 0; i < 7; i++) {
+                    particles.push({
+                        x: pt.x + (Math.random() - 0.5) * 30,
+                        y: pt.y + (Math.random() - 0.5) * 30,
+                        targetX: targetX,
+                        targetY: targetY,
+                        color: COLOR_PALETTE[colorKey].hex,
+                        size: 3 + Math.random() * 3,
+                        progress: 0,
+                        speed: 0.03 + Math.random() * 0.02,
+                        cpX: (pt.x + targetX) / 2 + (Math.random() - 0.5) * 100, // 贝塞尔控制点
+                        cpY: Math.min(pt.y, targetY) - 50 - Math.random() * 50
+                    });
+                }
+            });
+
+            gameState.isAnimating = true;
+        }
+
+        function updateAndRenderParticles(ctx) {
+            if (particles.length === 0) {
+                if (gameState.isAnimating) gameState.isAnimating = false;
+                return;
+            }
+
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.progress += p.speed;
+
+                if (p.progress >= 1) {
+                    particles.splice(i, 1);
+                    continue;
+                }
+
+                // 二次贝塞尔曲线插值
+                const t = p.progress;
+                const invT = 1 - t;
+                const currentX = invT * invT * p.x + 2 * invT * t * p.cpX + t * t * p.targetX;
+                const currentY = invT * invT * p.y + 2 * invT * t * p.cpY + t * t * p.targetY;
+
+                ctx.save();
+                ctx.fillStyle = p.color;
+                ctx.shadowColor = 'rgba(0,0,0,0.15)';
+                ctx.shadowBlur = 4;
+                ctx.beginPath();
+                ctx.arc(currentX, currentY, p.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            if (particles.length === 0) {
+                gameState.isAnimating = false;
+            }
+        }
+
+        function gameLoop() {
+            renderCanvas();
+            requestAnimationFrame(gameLoop);
+        }
+
+        /* ----------------------------------------------------
+         * 10. UI 渲染与更新 (桶、进度条、提示)
+         * ---------------------------------------------------- */
+        function renderBuckets() {
+            const container = document.getElementById('bucket-container');
+            container.innerHTML = '';
+
+            const level = LEVELS[currentLevelIndex];
+
+            level.colors.forEach(colorKey => {
+                const colorData = COLOR_PALETTE[colorKey];
+                const bucket = gameState.buckets[colorKey];
+                const fillPercent = Math.min(100, Math.round((bucket.count / bucket.capacity) * 100));
+
+                const bucketDiv = document.createElement('div');
+                bucketDiv.id = `bucket-${colorKey}`;
+                bucketDiv.className = `macaron-btn flex-shrink-0 flex flex-col items-center gap-1 cursor-pointer select-none group`;
+                bucketDiv.onclick = () => collectColor(colorKey);
+
+                bucketDiv.innerHTML = `
+                    <div class="relative w-14 h-18 sm:w-16 sm:h-20 bg-white border-2 border-macaron-border rounded-2xl p-1 shadow-sm overflow-hidden flex flex-col justify-end group-hover:border-macaron-peach transition-colors">
+                        <!-- 桶内部装填液体/沙层 -->
+                        <div class="w-full rounded-b-xl transition-all duration-500 relative flex items-center justify-center overflow-hidden" 
+                             style="height: ${fillPercent}%; background-color: ${colorData.hex};">
+                             <!-- 装填线与纹理 -->
+                             <div class="absolute top-0 left-0 w-full h-1 bg-white/40"></div>
+                        </div>
+                        
+                        <!-- 刻度线 -->
+                        <div class="absolute inset-0 flex flex-col justify-between p-2 pointer-events-none opacity-30">
+                            <div class="w-2 h-0.5 bg-macaron-subtext"></div>
+                            <div class="w-3 h-0.5 bg-macaron-subtext"></div>
+                            <div class="w-2 h-0.5 bg-macaron-subtext"></div>
+                        </div>
+
+                        <!-- 数量指示文本 -->
+                        <div class="absolute inset-0 flex items-center justify-center font-bold text-xs text-macaron-text drop-shadow-sm pointer-events-none">
+                            ${bucket.count}/${bucket.capacity}
+                        </div>
+                    </div>
+                    
+                    <!-- 颜色标签 -->
+                    <span class="text-[11px] font-bold text-macaron-subtext flex items-center gap-1">
+                        <span class="w-2 h-2 rounded-full inline-block" style="background-color: ${colorData.hex}"></span>
+                        ${colorData.name}
+                    </span>
+                `;
+
+                container.appendChild(bucketDiv);
+            });
+        }
+
+        function updateProgressUI() {
+            const collected = gameState.totalSandInitial - gameState.totalSandRemaining;
+            const progress = Math.round((collected / gameState.totalSandInitial) * 100) || 0;
+
+            document.getElementById('progress-bar').style.width = `${progress}%`;
+            document.getElementById('progress-text').innerText = `${progress}%`;
+        }
+
+        function updateUndoButton() {
+            const undoBtn = document.getElementById('btn-undo');
+            undoBtn.disabled = gameState.history.length === 0;
+        }
+
+        function shakeBucket(colorKey) {
+            const elem = document.getElementById(`bucket-${colorKey}`);
+            if (elem) {
+                elem.classList.add('animate-shake');
+                setTimeout(() => elem.classList.remove('animate-shake'), 400);
+            }
+        }
+
+        function showHint() {
+            if (gameState.isAnimating) return;
+
+            const exposedMap = getExposedSand();
+            let recommendedColor = null;
+
+            // 查找有空位且表层有沙粒可收的桶
+            for (const colorKey in exposedMap) {
+                const bucket = gameState.buckets[colorKey];
+                if (bucket && bucket.count < bucket.capacity) {
+                    recommendedColor = colorKey;
+                    break;
+                }
+            }
+
+            if (recommendedColor) {
+                const elem = document.getElementById(`bucket-${recommendedColor}`);
+                if (elem) {
+                    elem.classList.add('hint-pulse');
+                    sound.playSandCollect();
+                    setTimeout(() => elem.classList.remove('hint-pulse'), 3000);
+                }
+            } else {
+                sound.playError();
+            }
+        }
+
+        function toggleAudio() {
+            gameState.audioEnabled = !gameState.audioEnabled;
+            const icon = document.getElementById('audio-icon');
+            if (gameState.audioEnabled) {
+                icon.className = 'fa-solid fa-volume-high';
+            } else {
+                icon.className = 'fa-solid fa-volume-xmark text-macaron-subtext';
+            }
+        }
+
+        /* ----------------------------------------------------
+         * 11. Modal 弹窗逻辑与胜利/本地进度保存
+         * ---------------------------------------------------- */
+        function handleWin() {
+            sound.playWinSound();
+
+            // 触发绚丽粒子庆祝
+            confetti({
+                particleCount: 80,
+                spread: 70,
+                origin: { y: 0.6 },
+                colors: ['#A8E6CF', '#FF8B94', '#D8B4F8', '#FFEAA7', '#A0C4FF']
+            });
+
+            // 保存关卡进度与星级 (固定3星)
+            saveLevelProgress(LEVELS[currentLevelIndex].id, 3);
+
+            // 绘制完整画作到 Win Modal Canvas
+            const winCanvas = document.getElementById('winArtworkCanvas');
+            const winCtx = winCanvas.getContext('2d');
+            winCanvas.width = 200;
+            winCanvas.height = 200;
+            drawArtwork(winCtx, 200, 200, LEVELS[currentLevelIndex].artType);
+
+            // 显示 Modal
+            const modal = document.getElementById('modal-win');
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            modal.children[0].classList.remove('scale-95');
+            modal.children[0].classList.add('scale-100');
+        }
+
+        function closeWinModal() {
+            const modal = document.getElementById('modal-win');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+        }
+
+        function nextLevel() {
+            closeWinModal();
+            if (currentLevelIndex < LEVELS.length - 1) {
+                loadLevel(currentLevelIndex + 1);
+            } else {
+                alert("恭喜通关当前所有《拾沙物语》关卡！敬请期待更多精彩图案！");
+                loadLevel(0);
+            }
+        }
+
+        function openStuckModal() {
+            sound.playError();
+            const modal = document.getElementById('modal-stuck');
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            modal.children[0].classList.remove('scale-95');
+            modal.children[0].classList.add('scale-100');
+        }
+
+        function closeStuckModal() {
+            const modal = document.getElementById('modal-stuck');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+        }
+
+        function openLevelSelect() {
+            renderLevelGrid();
+            const modal = document.getElementById('modal-levels');
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            modal.children[0].classList.remove('scale-95');
+            modal.children[0].classList.add('scale-100');
+        }
+
+        function closeLevelSelect() {
+            const modal = document.getElementById('modal-levels');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+        }
+
+        function renderLevelGrid() {
+            const grid = document.getElementById('level-grid');
+            grid.innerHTML = '';
+
+            const progress = getSavedProgress();
+
+            LEVELS.forEach((level, idx) => {
+                const stars = progress[level.id] || 0;
+                const isUnlocked = idx === 0 || progress[LEVELS[idx - 1].id] !== undefined;
+
+                const card = document.createElement('div');
+                card.className = `p-3 rounded-2xl border text-center flex flex-col items-center gap-1 transition-all ${
+                    isUnlocked
+                        ? 'bg-macaron-bg border-macaron-border hover:bg-white cursor-pointer macaron-shadow'
+                        : 'bg-gray-100 border-gray-200 opacity-50 cursor-not-allowed'
+                }`;
+
+                if (isUnlocked) {
+                    card.onclick = () => {
+                        loadLevel(idx);
+                        closeLevelSelect();
+                    };
+                }
+
+                card.innerHTML = `
+                    <span class="text-xs font-bold text-macaron-subtext">第 ${level.id} 关</span>
+                    <span class="text-sm font-bold text-macaron-text truncate max-w-[80px]">${level.name}</span>
+                    <div class="flex text-xs text-amber-300 gap-0.5 mt-1">
+                        <i class="${stars >= 1 ? 'fa-solid' : 'fa-regular'} fa-star"></i>
+                        <i class="${stars >= 2 ? 'fa-solid' : 'fa-regular'} fa-star"></i>
+                        <i class="${stars >= 3 ? 'fa-solid' : 'fa-regular'} fa-star"></i>
+                    </div>
+                `;
+
+                grid.appendChild(card);
+            });
+        }
+
+        /* LocalStorage 存储 */
+        function saveLevelProgress(levelId, stars) {
+            let progress = getSavedProgress();
+            progress[levelId] = Math.max(progress[levelId] || 0, stars);
+            localStorage.setItem('sand_story_progress', JSON.stringify(progress));
+        }
+
+        function getSavedProgress() {
+            try {
+                return JSON.parse(localStorage.getItem('sand_story_progress')) || {};
+            } catch (e) {
+                return {};
+            }
+        }
+
+        function loadProgress() {
+            // 保留扩展逻辑
+        }
+    </script>
+</body>
+</html>
